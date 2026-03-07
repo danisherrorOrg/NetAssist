@@ -1,7 +1,7 @@
 from scapy.all import sniff, IP, TCP, UDP
 from datetime import datetime
 import traceback
-
+from netraffic.dns.dns_parser import parse_dns
 from netraffic.stats.packet_counter import PacketCounter
 from netraffic.parser.protocol_detector import get_protocol_name
 
@@ -9,7 +9,28 @@ counter = PacketCounter()
 
 
 def process_packet(packet):
+
     try:
+
+        # DNS detection first
+        dns_data = parse_dns(packet)
+
+        if dns_data:
+
+            if dns_data[0] == "QUERY":
+                domain = dns_data[1]
+                print(f"[DNS QUERY] {domain}")
+
+            elif dns_data[0] == "RESPONSE":
+                domain = dns_data[1]
+                ips = dns_data[2]
+
+                for ip in ips:
+                    print(f"[DNS RESPONSE] {domain} -> {ip}")
+
+            return
+
+        # Normal packet parsing
         if not packet.haslayer(IP):
             return
 
@@ -40,8 +61,8 @@ def process_packet(packet):
             f"| PPS: {pps}"
         )
 
-    except Exception:
-        traceback.print_exc()
+    except Exception as e:
+        print("Packet error:", e)
 
 def start_capture(interface=None):
 
