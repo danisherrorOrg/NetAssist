@@ -1,10 +1,7 @@
-from scapy.layers.dns import DNS
+from scapy.all import DNS
 
-
-def clean(value):
-    if isinstance(value, bytes):
-        return value.decode(errors="ignore").rstrip(".")
-    return str(value)
+# Store already seen queries
+seen_queries = set()
 
 
 def parse_dns(packet):
@@ -14,27 +11,39 @@ def parse_dns(packet):
 
     dns = packet[DNS]
 
-    # DNS Query
+    # DNS QUERY
     if dns.qr == 0 and dns.qd:
-        domain = clean(dns.qd.qname)
+
+        domain = dns.qd.qname.decode(errors="ignore").rstrip(".")
+
+        if domain in seen_queries:
+            return None
+
+        seen_queries.add(domain)
+
         return ("QUERY", domain)
 
-    # DNS Response
-    if dns.qr == 1 and dns.an:
+    # DNS RESPONSE
+    elif dns.qr == 1:
 
-        domain = clean(dns.qd.qname)
-
-        answers = set()
+        ips = []
 
         for i in range(dns.ancount):
 
-            rr = dns.an[i]
+            ans = dns.an[i]
 
-            try:
-                answers.add(clean(rr.rdata))
-            except Exception:
-                pass
+            if ans.type == 1:  # A record
+                ips.append(ans.rdata)
 
-        return ("RESPONSE", domain, list(answers))
+            elif ans.type == 28:  # AAAA record
+                ips.append(ans.rdata)
+
+        if dns.qd:
+            domain = dns.qd.qname.decode(errors="ignore").rstrip(".")
+        else:
+            domain = "unknown"
+
+        if ips:
+            return ("RESPONSE", domain, ips)
 
     return None
