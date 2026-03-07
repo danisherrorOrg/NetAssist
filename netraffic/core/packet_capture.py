@@ -4,6 +4,7 @@ import traceback
 from netraffic.dns.dns_parser import parse_dns
 from netraffic.stats.packet_counter import PacketCounter
 from netraffic.parser.protocol_detector import get_protocol_name
+from netraffic.dns.reverse_dns import reverse_lookup
 
 counter = PacketCounter()
 
@@ -43,6 +44,16 @@ def process_packet(packet):
 
         src_ip = packet[IP].src
         dst_ip = packet[IP].dst
+        src_port = "-"
+        dst_port = "-"
+
+        if packet.haslayer(TCP):
+            src_port = packet[TCP].sport
+            dst_port = packet[TCP].dport
+
+        elif packet.haslayer(UDP):
+            src_port = packet[UDP].sport
+            dst_port = packet[UDP].dport
 
         src_port = "-"
         dst_port = "-"
@@ -55,9 +66,15 @@ def process_packet(packet):
             src_port = packet[UDP].sport
             dst_port = packet[UDP].dport
 
+        src_domain = reverse_lookup(src_ip)
+        dst_domain = reverse_lookup(dst_ip)
+
+        src_display = src_domain if src_domain else src_ip
+        dst_display = dst_domain if dst_domain else dst_ip
+
         print(
             f"[{timestamp}] {protocol} "
-            f"{src_ip}:{src_port} -> {dst_ip}:{dst_port} "
+            f"{src_display}:{src_port} -> {dst_display}:{dst_port} "
             f"| PPS: {pps}"
         )
 
