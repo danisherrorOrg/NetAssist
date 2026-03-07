@@ -1,10 +1,13 @@
-from scapy.layers.dns import DNS, DNSQR, DNSRR
+from scapy.layers.dns import DNS
+
+
+def clean(value):
+    if isinstance(value, bytes):
+        return value.decode(errors="ignore").rstrip(".")
+    return str(value)
 
 
 def parse_dns(packet):
-    """
-    Detect DNS query or response
-    """
 
     if not packet.haslayer(DNS):
         return None
@@ -12,23 +15,26 @@ def parse_dns(packet):
     dns = packet[DNS]
 
     # DNS Query
-    if dns.qr == 0:
-        if dns.qd:
-            domain = dns.qd.qname.decode(errors="ignore").rstrip(".")
-            return ("QUERY", domain)
+    if dns.qr == 0 and dns.qd:
+        domain = clean(dns.qd.qname)
+        return ("QUERY", domain)
 
     # DNS Response
-    if dns.qr == 1:
-        if dns.an:
-            domain = dns.qd.qname.decode(errors="ignore").rstrip(".")
+    if dns.qr == 1 and dns.an:
 
-            answers = []
+        domain = clean(dns.qd.qname)
 
-            for i in range(dns.ancount):
-                rr = dns.an[i]
-                if isinstance(rr, DNSRR):
-                    answers.append(rr.rdata)
+        answers = set()
 
-            return ("RESPONSE", domain, answers)
+        for i in range(dns.ancount):
+
+            rr = dns.an[i]
+
+            try:
+                answers.add(clean(rr.rdata))
+            except Exception:
+                pass
+
+        return ("RESPONSE", domain, list(answers))
 
     return None
