@@ -1,8 +1,16 @@
 from scapy.all import sniff, IP, TCP, UDP, ICMP
 from datetime import datetime
 
+from netraffic.stats.packet_counter import PacketCounter
+
+
+counter = PacketCounter()
+
 
 def process_packet(packet):
+
+    counter.record_packet()
+    pps = counter.packets_per_second()
 
     timestamp = datetime.now().strftime("%H:%M:%S")
 
@@ -30,7 +38,8 @@ def process_packet(packet):
 
         print(
             f"[{timestamp}] {protocol} "
-            f"{src_ip}:{src_port} -> {dst_ip}:{dst_port}"
+            f"{src_ip}:{src_port} -> {dst_ip}:{dst_port} "
+            f"| PPS: {pps}"
         )
 
 
