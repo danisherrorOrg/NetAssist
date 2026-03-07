@@ -1,40 +1,38 @@
-from scapy.all import sniff, IP, TCP, UDP, ICMP
+from scapy.all import sniff, IP, TCP, UDP
 from datetime import datetime
+import traceback
 
 from netraffic.stats.packet_counter import PacketCounter
-
+from netraffic.parser.protocol_detector import get_protocol_name
 
 counter = PacketCounter()
 
 
 def process_packet(packet):
+    try:
+        if not packet.haslayer(IP):
+            return
 
-    counter.record_packet()
-    pps = counter.packets_per_second()
+        counter.record_packet()
+        pps = counter.packets_per_second()
 
-    timestamp = datetime.now().strftime("%H:%M:%S")
+        timestamp = datetime.now().strftime("%H:%M:%S")
 
-    if IP in packet:
+        protocol = get_protocol_name(packet)
 
         src_ip = packet[IP].src
         dst_ip = packet[IP].dst
 
-        protocol = "OTHER"
         src_port = "-"
         dst_port = "-"
 
-        if TCP in packet:
-            protocol = "TCP"
+        if packet.haslayer(TCP):
             src_port = packet[TCP].sport
             dst_port = packet[TCP].dport
 
-        elif UDP in packet:
-            protocol = "UDP"
+        elif packet.haslayer(UDP):
             src_port = packet[UDP].sport
             dst_port = packet[UDP].dport
-
-        elif ICMP in packet:
-            protocol = "ICMP"
 
         print(
             f"[{timestamp}] {protocol} "
@@ -42,6 +40,8 @@ def process_packet(packet):
             f"| PPS: {pps}"
         )
 
+    except Exception:
+        traceback.print_exc()
 
 def start_capture(interface=None):
 
@@ -50,5 +50,6 @@ def start_capture(interface=None):
     sniff(
         iface=interface,
         prn=process_packet,
-        store=False
+        store=False,
+        promisc=True
     )
