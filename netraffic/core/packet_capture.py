@@ -14,6 +14,27 @@ from netraffic.stats.trafficStats import TrafficStats
 from netraffic.tls.tls_sni_parser import parse_tls_sni
 from netraffic.http.http_parser import parse_http_host
 from netraffic.flow.flow_tracker import FlowTracker
+# ----------------------
+# Logging Setup
+# ----------------------
+import logging
+from logging.handlers import RotatingFileHandler
+
+logger = logging.getLogger("PacketLogger")
+logger.setLevel(logging.INFO)
+
+# Log to file with rotation: max 5 MB per file, keep 3 backups
+file_handler = RotatingFileHandler("packets.log", maxBytes=5*1024*1024, backupCount=3)
+formatter = logging.Formatter(
+    '%(asctime)s | %(levelname)s | %(message)s', datefmt="%Y-%m-%d %H:%M:%S"
+)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+# Optional: also log to console
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 # ----------------------
 # Global State
@@ -43,10 +64,10 @@ BLACKLIST_DOMAINS = set()  # Blacklisted domains
 # Helper Functions
 # ----------------------
 def print_top_domains(top_n=10):
-    print("\n--- Top Requested Domains ---")
+    logger.info("\n--- Top Requested Domains ---")
     for domain, count in domain_counter.most_common(top_n):
-        print(f"{domain}: {count}")
-    print("----------------------------\n")
+        logger.info(f"{domain}: {count}")
+    logger.info("----------------------------\n")
 
 
 def get_geo_info(ip):
@@ -143,7 +164,7 @@ def process_packet(packet):
     try:
         # Check blacklist first
         if is_blacklisted(packet):
-            print("[BLACKLISTED DOMAIN] Malicious packet detected!")
+            logger.warning("[BLACKLISTED DOMAIN] Malicious packet detected!")
             sys.exit(1)  # or log only
 
         # Apply filters if enabled
@@ -165,7 +186,7 @@ def process_packet(packet):
 
         if http_host and http_host not in seen_http:
             seen_http.add(http_host)
-            print(f"[HTTP HOST] {http_host}")
+            logger.info(f"[HTTP HOST] {http_host}")
             domain_counter[http_host] += 1
 
         tls_domain = parse_tls_sni(packet)
@@ -174,7 +195,7 @@ def process_packet(packet):
             # Only print valid domain-like strings
             if '.' in tls_domain and tls_domain not in seen_tls:
                 seen_tls.add(tls_domain)
-                print(f"[TLS SNI] {tls_domain}")
+                logger.info(f"[TLS SNI] {tls_domain}")
                 domain_counter[tls_domain] += 1
 
         # DNS
@@ -182,14 +203,14 @@ def process_packet(packet):
         if dns_data:
             if dns_data[0] == "QUERY":
                 domain = dns_data[1]
-                print(f"[DNS QUERY] {domain}")
+                logger.info(f"[DNS QUERY] {domain}")
                 domain_counter[domain] += 1
             elif dns_data[0] == "RESPONSE":
                 domain = dns_data[1]
                 ips = dns_data[2]
                 domain_counter[domain] += 1
                 for ip in ips:
-                    print(f"[DNS RESPONSE] {domain} -> {ip}")
+                    logger.info(f"[DNS RESPONSE] {domain} -> {ip}")
             return
 
         if not packet.haslayer(IP):
@@ -235,13 +256,13 @@ def process_packet(packet):
 
         # Print stats periodically
         if counter.total_packets % 100 == 0:
-            flow_tracker.print_active_flows()
-            traffic_stats.print_protocol_distribution()
-            top_talkers.print_top_talkers()
+            flow_tracker.print_active_flows(logger)
+            traffic_stats.print_protocol_distribution(logger)
+            top_talkers.print_top_talkers(logger)
             print_top_domains(top_n=10)
 
         # Print main packet info
-        print(f"[{timestamp}] {protocol} {src_display}:{src_port} -> {dst_display}:{dst_port} | PPS: {pps} | LEN: {pkt_len}")
+        logger.info(f"[{timestamp}] {protocol} {src_display}:{src_port} -> {dst_display}:{dst_port} | PPS: {pps} | LEN: {pkt_len}")
 
     except Exception as e:
         print("Packet error:", e)
@@ -251,7 +272,7 @@ def process_packet(packet):
 # Start Capture
 # ----------------------
 def start_capture(interface=None):
-    print("\nStarting Packet Capture...\n")
+    logger.info("\nStarting Packet Capture...\n")
     sniff(
         iface=interface,
         prn=process_packet,

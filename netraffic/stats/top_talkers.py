@@ -21,12 +21,12 @@ class TopTalkers:
         top_by_bytes = sorted(self.ip_bytes.items(), key=lambda x: x[1], reverse=True)[:self.top_n]
         return top_by_packets, top_by_bytes
 
-    def print_top_talkers(self):
+    def print_top_talkers(self,logger):
         top_by_packets, top_by_bytes = self.get_top_talkers()
-        print("\n--- Top Talkers (Packets) ---")
+        logger.info("\n--- Top Talkers (Packets) ---")
         for ip, pkt_count in top_by_packets:
-            print(f"{ip}: {pkt_count} packets")
-        print("\n--- Top Talkers (Bytes) ---")
+            logger.info(f"{ip}: {pkt_count} packets")
+        logger.info("\n--- Top Talkers (Bytes) ---")
         for ip, byte_count in top_by_bytes:
-            print(f"{ip}: {byte_count} bytes")
+            logger.info(f"{ip}: {byte_count} bytes")
         print("-----------------------------\n")

@@ -32,18 +32,18 @@ class TrafficStats:
             dist[proto] = {"packets": pct_packets, "bytes": pct_bytes}
         return dist
 
-    def print_protocol_distribution(self):
+    def print_protocol_distribution(self, logger):
         dist = self.protocol_distribution()
-        print("\n--- Protocol Distribution (Cumulative) ---")
+        logger.info("\n--- Protocol Distribution (Cumulative) ---")
         for proto, stats in dist.items():
             interval_pkt = self.int_protocol_packets[proto]
             interval_bytes = self.int_protocol_bytes[proto]
-            print(
+            logger.info(
                 f"{proto}: {stats['packets']:.2f}% packets, "
                 f"{stats['bytes']:.2f}% bytes | "
                 f"Interval: {interval_pkt} pkt, {interval_bytes} bytes"
             )
-        print("-----------------------------------------\n")
+        logger.info("-----------------------------------------\n")
         # Reset interval stats
         self.int_protocol_packets.clear()
         self.int_protocol_bytes.clear()

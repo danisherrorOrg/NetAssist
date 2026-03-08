@@ -28,7 +28,7 @@ class FlowTracker:
             flow["bytes"] += pkt_len
             flow["last"] = now
 
-    def print_active_flows(self):
+    def print_active_flows(self, logger):
 
         now = time.time()
 
@@ -40,7 +40,7 @@ class FlowTracker:
 
             bytes_kb = flow["bytes"] / 1024
 
-            print(
+            logger.info(
                 f"FLOW {src_ip}:{src_port} → {dst_ip}:{dst_port} {protocol} "
                 f"| Packets: {flow['packets']} "
                 f"| Bytes: {bytes_kb:.2f} KB "
