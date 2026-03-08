@@ -397,6 +397,13 @@ def process_packet(packet):
 
         log_packet_json(packet_info)
         log_packet_csv(packet_info)
+        traffic_stats.record_packet(protocol, pkt_len)
+
+        # Print every 100 packets
+        if counter.total_packets % 100 == 0:
+            traffic_stats.print_protocol_distribution(logger)
+            bandwidth = traffic_stats.get_bandwidth_bps()
+            logger.info(f"--- Estimated Bandwidth: {bandwidth/1e6:.2f} Mbps ---")
 
         # Print main packet info
         logger.info(f"[{timestamp}] {protocol} {src_display}:{src_port} -> {dst_display}:{dst_port} | PPS: {pps} | LEN: {pkt_len}")

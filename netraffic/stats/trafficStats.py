@@ -4,8 +4,12 @@ from collections import defaultdict
 class TrafficStats:
     def __init__(self):
         # Cumulative stats
+        self.protocol_bytes = defaultdict(int)
+        self.bytes_in_interval = 0
         self.total_packets = 0
         self.total_bytes = 0
+        self.start_time = time.time()
+        self.last_time = self.start_time
         self.cum_protocol_packets = defaultdict(int)
         self.cum_protocol_bytes = defaultdict(int)
 
@@ -23,6 +27,9 @@ class TrafficStats:
         # Update interval
         self.int_protocol_packets[protocol] += 1
         self.int_protocol_bytes[protocol] += pkt_len
+
+        # Update interval bytes for bandwidth calculation
+        self.bytes_in_interval += pkt_len
 
     def protocol_distribution(self):
         dist = {}
@@ -47,3 +54,13 @@ class TrafficStats:
         # Reset interval stats
         self.int_protocol_packets.clear()
         self.int_protocol_bytes.clear()
+    def get_bandwidth_bps(self):
+        now = time.time()
+        duration = now - self.last_time
+        if duration <= 0:
+            return 0
+        bps = (self.bytes_in_interval * 8) / duration  # bits per second
+        # Reset interval
+        self.bytes_in_interval = 0
+        self.last_time = now
+        return bps
