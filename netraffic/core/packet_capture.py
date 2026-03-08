@@ -14,7 +14,7 @@ from netraffic.flow.flow_tracker import FlowTracker
 import geoip2.database
 
 geoip_reader = geoip2.database.Reader("./GeoLite2-City.mmdb")
-traffic_stats = TrafficStats(interval=5)
+traffic_stats = TrafficStats()
 seen_http = set()
 seen_tls = set()
 flow_tracker = FlowTracker()
@@ -228,19 +228,12 @@ def process_packet(packet):
         flow_tracker.update(
             src_ip, dst_ip, src_port, dst_port, protocol, pkt_len
         )
-        traffic_stats.record_packet(
-            packet,
-            protocol,
-            src_ip,
-            dst_ip,
-            pkt_len,
-            src_domain=src_domain,
-            dst_domain=dst_domain
-        )
+        # Inside process_packet after protocol and pkt_len are determined
+        traffic_stats.record_packet(protocol, pkt_len)
 
-        # Periodically print stats
-        if counter.total_packets % 100 == 0:  # or every N packets
-            traffic_stats.print_stats()
+        # Print every 100 packets
+        if counter.total_packets % 100 == 0:
+            traffic_stats.print_protocol_distribution()
 
         # print(
         #     f"[{timestamp}] {protocol} "

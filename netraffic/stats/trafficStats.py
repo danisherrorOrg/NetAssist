@@ -1,46 +1,49 @@
 import time
-from collections import defaultdict, deque
+from collections import defaultdict
 
 class TrafficStats:
-    def __init__(self, interval=1):
-        self.interval = interval  # seconds
-        self.start_time = time.time()
-        self.protocol_bytes = defaultdict(int)   # Bytes per protocol
-        self.ip_bytes = defaultdict(int)         # Bytes per IP
-        self.domain_bytes = defaultdict(int)     # Bytes per domain
-        self.packet_times = deque()              # For PPS calculation
+    def __init__(self):
+        # Cumulative stats
+        self.total_packets = 0
+        self.total_bytes = 0
+        self.cum_protocol_packets = defaultdict(int)
+        self.cum_protocol_bytes = defaultdict(int)
 
-    def record_packet(self, packet, protocol, src_ip, dst_ip, pkt_len, src_domain=None, dst_domain=None):
-        now = time.time()
-        self.packet_times.append(now)
+        # Interval stats (reset after each print)
+        self.int_protocol_packets = defaultdict(int)
+        self.int_protocol_bytes = defaultdict(int)
 
-        # Clean old packet times to calculate PPS
-        while self.packet_times and now - self.packet_times[0] > self.interval:
-            self.packet_times.popleft()
+    def record_packet(self, protocol, pkt_len):
+        # Update cumulative
+        self.total_packets += 1
+        self.total_bytes += pkt_len
+        self.cum_protocol_packets[protocol] += 1
+        self.cum_protocol_bytes[protocol] += pkt_len
 
-        # Update statistics
-        self.protocol_bytes[protocol] += pkt_len
-        self.ip_bytes[src_ip] += pkt_len
-        self.ip_bytes[dst_ip] += pkt_len
+        # Update interval
+        self.int_protocol_packets[protocol] += 1
+        self.int_protocol_bytes[protocol] += pkt_len
 
-        if src_domain:
-            self.domain_bytes[src_domain] += pkt_len
-        if dst_domain:
-            self.domain_bytes[dst_domain] += pkt_len
+    def protocol_distribution(self):
+        dist = {}
+        for proto in self.cum_protocol_packets:
+            pct_packets = (self.cum_protocol_packets[proto] / self.total_packets) * 100
+            pct_bytes = (self.cum_protocol_bytes[proto] / self.total_bytes) * 100
+            dist[proto] = {"packets": pct_packets, "bytes": pct_bytes}
+        return dist
 
-    def packets_per_second(self):
-        return len(self.packet_times)
-
-    def print_stats(self):
-        print(f"\n--- Traffic Stats (last {self.interval}s) ---")
-        print(f"PPS: {self.packets_per_second()}")
-        print("Top Protocols:")
-        for proto, b in self.protocol_bytes.items():
-            print(f"  {proto}: {b} bytes")
-        print("Top IPs:")
-        for ip, b in self.ip_bytes.items():
-            print(f"  {ip}: {b} bytes")
-        print("Top Domains:")
-        for domain, b in self.domain_bytes.items():
-            print(f"  {domain}: {b} bytes")
+    def print_protocol_distribution(self):
+        dist = self.protocol_distribution()
+        print("\n--- Protocol Distribution (Cumulative) ---")
+        for proto, stats in dist.items():
+            interval_pkt = self.int_protocol_packets[proto]
+            interval_bytes = self.int_protocol_bytes[proto]
+            print(
+                f"{proto}: {stats['packets']:.2f}% packets, "
+                f"{stats['bytes']:.2f}% bytes | "
+                f"Interval: {interval_pkt} pkt, {interval_bytes} bytes"
+            )
         print("-----------------------------------------\n")
+        # Reset interval stats
+        self.int_protocol_packets.clear()
+        self.int_protocol_bytes.clear()
