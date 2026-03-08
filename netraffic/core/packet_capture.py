@@ -7,13 +7,14 @@ from netraffic.stats.packet_counter import PacketCounter
 from netraffic.parser.protocol_detector import get_protocol_name
 from netraffic.dns.reverse_dns import reverse_lookup
 from netraffic.dns.dns_cache import resolve_ip, store_mapping
+from netraffic.stats.trafficStats import TrafficStats
 from netraffic.tls.tls_sni_parser import parse_tls_sni
 from netraffic.http.http_parser import parse_http_host
 from netraffic.flow.flow_tracker import FlowTracker
 import geoip2.database
 
 geoip_reader = geoip2.database.Reader("./GeoLite2-City.mmdb")
-
+traffic_stats = TrafficStats(interval=5)
 seen_http = set()
 seen_tls = set()
 flow_tracker = FlowTracker()
@@ -227,6 +228,19 @@ def process_packet(packet):
         flow_tracker.update(
             src_ip, dst_ip, src_port, dst_port, protocol, pkt_len
         )
+        traffic_stats.record_packet(
+            packet,
+            protocol,
+            src_ip,
+            dst_ip,
+            pkt_len,
+            src_domain=src_domain,
+            dst_domain=dst_domain
+        )
+
+        # Periodically print stats
+        if counter.total_packets % 100 == 0:  # or every N packets
+            traffic_stats.print_stats()
 
         # print(
         #     f"[{timestamp}] {protocol} "
