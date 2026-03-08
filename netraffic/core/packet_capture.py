@@ -5,7 +5,7 @@ import os
 from collections import Counter
 import geoip2.database
 import atexit
-
+from tabulate import tabulate
 from netraffic.dns.dns_parser import parse_dns
 from netraffic.stats.top_talkers import TopTalkers
 from netraffic.stats.packet_counter import PacketCounter
@@ -164,7 +164,23 @@ def print_top_domains(top_n=10):
     for domain, count in domain_counter.most_common(top_n):
         logger.info(f"{domain}: {count}")
     logger.info("----------------------------\n")
+def print_top_domains_table(top_n=10):
+    """
+    Print the most requested domains in a table.
+    """
+    if not domain_counter:
+        logger.info("No domains requested yet.")
+        return
 
+    headers = ["Rank", "Domain", "Request Count"]
+    table = []
+
+    for i, (domain, count) in enumerate(domain_counter.most_common(top_n), start=1):
+        table.append([i, domain, count])
+
+    logger.info("\n--- Top Requested Domains ---")
+    logger.info(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+    logger.info("----------------------------\n")
 
 def get_geo_info(ip):
     try:
@@ -369,10 +385,14 @@ def process_packet(packet):
 
         # Print stats periodically
         if counter.total_packets % 100 == 0:
-            flow_tracker.print_active_flows(logger)
-            traffic_stats.print_protocol_distribution(logger)
-            top_talkers.print_top_talkers(logger)
-            print_top_domains(top_n=10)
+            # Print table
+            flow_tracker.print_flows_table(logger)
+            traffic_stats.print_protocol_distribution_table(logger)
+            # Print table by bytes
+            top_talkers.print_top_talkers_table(by="bytes", logger=logger)
+            # Print table by packets
+            top_talkers.print_top_talkers_table(by="packets",logger=logger)
+            print_top_domains_table(top_n=10)
 
         packet_info = {
             "timestamp": timestamp,
@@ -401,7 +421,7 @@ def process_packet(packet):
 
         # Print every 100 packets
         if counter.total_packets % 100 == 0:
-            traffic_stats.print_protocol_distribution(logger)
+            traffic_stats.print_protocol_distribution_table(logger)
             bandwidth = traffic_stats.get_bandwidth_bps()
             logger.info(f"--- Estimated Bandwidth: {bandwidth/1e6:.2f} Mbps ---")
 

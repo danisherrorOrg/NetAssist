@@ -1,6 +1,6 @@
 import time
 from collections import defaultdict
-
+from tabulate import tabulate
 class TrafficStats:
     def __init__(self):
         # Cumulative stats
@@ -54,6 +54,18 @@ class TrafficStats:
         # Reset interval stats
         self.int_protocol_packets.clear()
         self.int_protocol_bytes.clear()
+    def print_protocol_distribution_table(self, logger):
+        """
+        Print cumulative protocol stats in table format.
+        """
+        dist = self.protocol_distribution()
+        if not dist:
+            logger.info("No protocol stats available.")
+            return
+
+        headers = ["Protocol", "Packets %", "Bytes %"]
+        table = [[proto, f"{stats['packets']:.2f}", f"{stats['bytes']:.2f}"] for proto, stats in dist.items()]
+        logger.info(tabulate(table, headers=headers, tablefmt="fancy_grid"))
     def get_bandwidth_bps(self):
         now = time.time()
         duration = now - self.last_time
