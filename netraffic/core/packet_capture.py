@@ -9,10 +9,11 @@ from netraffic.dns.reverse_dns import reverse_lookup
 from netraffic.dns.dns_cache import resolve_ip, store_mapping
 from netraffic.tls.tls_sni_parser import parse_tls_sni
 from netraffic.http.http_parser import parse_http_host
-
+from netraffic.flow.flow_tracker import FlowTracker
 
 seen_http = set()
 seen_tls = set()
+flow_tracker = FlowTracker()
 
 counter = PacketCounter()
 
@@ -61,6 +62,10 @@ def process_packet(packet):
             return
 
         counter.record_packet()
+        if counter.total_packets % 10 == 0:
+            print("\n--- Active Flows ---")
+            flow_tracker.print_active_flows()
+            print("--------------------\n")
         pps = counter.packets_per_second()
 
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -98,13 +103,20 @@ def process_packet(packet):
 
         src_display = src_domain if src_domain else src_ip
         dst_display = dst_domain if dst_domain else dst_ip
+        flow_tracker.update(
+            src_ip,
+            dst_ip,
+            src_port,
+            dst_port,
+            protocol,
+            pkt_len
+        )
 
         print(
             f"[{timestamp}] {protocol} "
             f"{src_display}:{src_port} -> {dst_display}:{dst_port} "
             f"| PPS: {pps} | LEN: {pkt_len}"
         )
-
     except Exception as e:
         print("Packet error:", e)
 
