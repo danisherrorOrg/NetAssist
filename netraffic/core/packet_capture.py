@@ -1,6 +1,7 @@
 from scapy.all import sniff, IP, TCP, UDP
 from datetime import datetime
 import sys
+import os
 from collections import Counter
 import geoip2.database
 
@@ -14,6 +15,36 @@ from netraffic.stats.trafficStats import TrafficStats
 from netraffic.tls.tls_sni_parser import parse_tls_sni
 from netraffic.http.http_parser import parse_http_host
 from netraffic.flow.flow_tracker import FlowTracker
+
+import json
+
+JSON_LOG_FILE = "packets.json"
+
+# Initialize JSON log file at start of capture
+def init_json_log():
+    with open("packets.json", "w") as f:
+        f.write("[\n")  # start JSON array
+
+# Append a packet to the JSON log
+def log_packet_json(packet_info):
+    """Append packet info to JSON file."""
+    # Create file if it doesn't exist
+    if not os.path.exists("packets.json"):
+        init_json_log()
+    
+    with open("packets.json", "a") as f:
+        json.dump(packet_info, f, indent=2)
+        f.write(",\n")  # comma separates objects
+
+# Close JSON array properly when capture ends
+def finalize_json_log():
+    """Close JSON array and remove trailing comma for valid JSON."""
+    with open("packets.json", "rb+") as f:
+        f.seek(-2, os.SEEK_END)  # move to last comma
+        f.truncate()             # remove trailing comma and newline
+    with open("packets.json", "a") as f:
+        f.write("\n]")           # close JSON array
+
 # ----------------------
 # Logging Setup
 # ----------------------
@@ -260,6 +291,23 @@ def process_packet(packet):
             traffic_stats.print_protocol_distribution(logger)
             top_talkers.print_top_talkers(logger)
             print_top_domains(top_n=10)
+
+        packet_info = {
+            "timestamp": timestamp,
+            "protocol": protocol,
+            "src_ip": src_ip,
+            "dst_ip": dst_ip,
+            "src_port": src_port,
+            "dst_port": dst_port,
+            "src_domain": src_domain,
+            "dst_domain": dst_domain,
+            "packet_length": pkt_len,
+            "pps": pps,
+            "tls_sni": tls_domain if tls_domain else None,
+            "http_host": http_host if http_host else None,
+        }
+
+        log_packet_json(packet_info)
 
         # Print main packet info
         logger.info(f"[{timestamp}] {protocol} {src_display}:{src_port} -> {dst_display}:{dst_port} | PPS: {pps} | LEN: {pkt_len}")
