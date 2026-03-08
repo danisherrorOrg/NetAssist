@@ -1,7 +1,7 @@
 from scapy.all import sniff, IP, TCP, UDP
 from datetime import datetime
 import traceback
-
+import sys
 from netraffic.dns.dns_parser import parse_dns
 from netraffic.stats.packet_counter import PacketCounter
 from netraffic.parser.protocol_detector import get_protocol_name
@@ -24,6 +24,32 @@ FILTER_IPS = set()         # No IP filter
 FILTER_PORTS = set()       # No port filter
 FILTER_PROTOCOLS = set()   # No protocol filter
 FILTER_DOMAINS = set()     # No domain filter
+
+BLACKLIST_DOMAINS = {
+}
+
+BLACKLIST_DOMAINS = {"leetcode"}
+
+def is_blacklisted(packet):
+    """Return True if packet matches any blacklisted domain."""
+    # DNS
+    dns_data = parse_dns(packet)
+    if dns_data:
+        domain = dns_data[1] if dns_data[0] in {"QUERY", "RESPONSE"} else None
+        if domain and any(bd in domain for bd in BLACKLIST_DOMAINS):
+            return True
+
+    # TLS SNI
+    tls_domain = parse_tls_sni(packet)
+    if tls_domain and any(bd in tls_domain for bd in BLACKLIST_DOMAINS):
+        return True
+
+    # HTTP Host
+    http_host = parse_http_host(packet)
+    if http_host and any(bd in http_host for bd in BLACKLIST_DOMAINS):
+        return True
+
+    return False
 
 def packet_matches_domain(packet):
     """
@@ -102,7 +128,12 @@ def packet_passes_filter(packet):
 
 def process_packet(packet):
     try:
+        
         # Apply packet-level filters first
+        if is_blacklisted(packet):
+            print("[BLACKLISTED DOMAIN] Packet related to malicious domain detected!")
+            sys.exit(1)
+            return  # Skip further processing, or log it specially
         if ENABLE_FILTERS:
             if not packet_passes_filter(packet):
                 return
