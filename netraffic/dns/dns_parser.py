@@ -1,5 +1,5 @@
 from scapy.all import DNS
-
+from netraffic.dns.dns_cache import store_mapping
 # Store already seen queries
 seen_queries = set()
 
@@ -32,10 +32,10 @@ def parse_dns(packet):
 
             ans = dns.an[i]
 
-            if ans.type == 1:  # A record
+            if ans.type == 1:
                 ips.append(ans.rdata)
 
-            elif ans.type == 28:  # AAAA record
+            elif ans.type == 28:
                 ips.append(ans.rdata)
 
         if dns.qd:
@@ -43,7 +43,7 @@ def parse_dns(packet):
         else:
             domain = "unknown"
 
-        if ips:
-            return ("RESPONSE", domain, ips)
+        # Store domain ↔ IP relationship
+        store_mapping(domain, ips)
 
-    return None
+        return ("RESPONSE", domain, ips)
