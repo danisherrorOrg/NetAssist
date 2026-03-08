@@ -17,12 +17,60 @@ flow_tracker = FlowTracker()
 
 counter = PacketCounter()
 
+# ----------------------
+# Packet Filters
+# ----------------------
+FILTER_IPS = {"192.168.29.196", "8.8.8.8"}     # Only capture these IPs
+FILTER_IPS = {}
+FILTER_PORTS = {53, 443, 80}                   # Only capture these ports
+FILTER_PROTOCOLS = {"TCP"}      # Only capture these protocols
+
+def packet_passes_filter(packet):
+    # Must have IP layer
+    if not packet.haslayer(IP):
+        return False
+
+    src_ip = packet[IP].src
+    dst_ip = packet[IP].dst
+
+    # Filter by IP
+    if FILTER_IPS and src_ip not in FILTER_IPS and dst_ip not in FILTER_IPS:
+        return False
+
+    # Determine protocol
+    protocol = ""
+    if packet.haslayer(TCP):
+        protocol = "TCP"
+        src_port = packet[TCP].sport
+        dst_port = packet[TCP].dport
+    elif packet.haslayer(UDP):
+        protocol = "UDP"
+        src_port = packet[UDP].sport
+        dst_port = packet[UDP].dport
+    elif packet.haslayer("ICMP"):
+        protocol = "ICMP"
+        src_port = dst_port = None
+    else:
+        protocol = get_protocol_name(packet)
+
+    # Filter by protocol
+    if FILTER_PROTOCOLS and protocol not in FILTER_PROTOCOLS:
+        return False
+
+    # Filter by port (TCP/UDP only)
+    if FILTER_PORTS and protocol in {"TCP", "UDP"}:
+        if src_port not in FILTER_PORTS and dst_port not in FILTER_PORTS:
+            return False
+
+    return True
 
 def process_packet(packet):
 
     try:
 
         # TLS / HTTP detection
+        if not packet_passes_filter(packet):
+            return  # Skip packet
         tls_domain = None
         if packet.haslayer(TCP):
 
@@ -62,7 +110,7 @@ def process_packet(packet):
             return
 
         counter.record_packet()
-        if counter.total_packets % 10 == 0:
+        if counter.total_packets % 100 == 0:
             print("\n--- Active Flows ---")
             flow_tracker.print_active_flows()
             print("--------------------\n")
