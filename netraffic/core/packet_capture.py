@@ -4,6 +4,7 @@ import sys
 import os
 from collections import Counter
 import geoip2.database
+import atexit
 
 from netraffic.dns.dns_parser import parse_dns
 from netraffic.stats.top_talkers import TopTalkers
@@ -17,6 +18,18 @@ from netraffic.http.http_parser import parse_http_host
 from netraffic.flow.flow_tracker import FlowTracker
 import csv
 import json
+from scapy.all import wrpcap
+
+PCAP_FILE = "captured_packets.pcap"  # PCAP file
+captured_packets = []  # buffer to store packets
+def save_remaining_packets():
+    if captured_packets:
+        wrpcap(PCAP_FILE, captured_packets)
+        print(f"[PCAP] Saved remaining {len(captured_packets)} packets to {PCAP_FILE}")
+
+# Register the function to run on program exit
+atexit.register(save_remaining_packets)
+
 CSV_FILE = "packets.csv"
 
 def init_csv_log():
@@ -337,6 +350,12 @@ def process_packet(packet):
             "tls_sni": tls_domain if tls_domain else None,
             "http_host": http_host if http_host else None,
         }
+        captured_packets.append(packet)
+
+        # Periodically save to file every 100 packets
+        if len(captured_packets) % 100 == 0:
+            wrpcap(PCAP_FILE, captured_packets)
+            print(f"[PCAP] Saved {len(captured_packets)} packets to {PCAP_FILE}")
 
         log_packet_json(packet_info)
         log_packet_csv(packet_info)
