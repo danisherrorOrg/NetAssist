@@ -10,6 +10,9 @@ from netraffic.dns.dns_cache import resolve_ip, store_mapping
 from netraffic.tls.tls_sni_parser import parse_tls_sni
 from netraffic.http.http_parser import parse_http_host
 from netraffic.flow.flow_tracker import FlowTracker
+import geoip2.database
+
+geoip_reader = geoip2.database.Reader("./GeoLite2-City.mmdb")
 
 seen_http = set()
 seen_tls = set()
@@ -28,8 +31,19 @@ FILTER_DOMAINS = set()     # No domain filter
 BLACKLIST_DOMAINS = {
 }
 
-BLACKLIST_DOMAINS = {"leetcode"}
+BLACKLIST_DOMAINS = {}
 
+
+def get_geo_info(ip):
+    try:
+        response = geoip_reader.city(ip)
+        country = response.country.name
+        region = response.subdivisions.most_specific.name
+        city = response.city.name
+        return f"{city}, {region}, {country}"
+    except:
+        return None
+    
 def is_blacklisted(packet):
     """Return True if packet matches any blacklisted domain."""
     # DNS
@@ -204,18 +218,22 @@ def process_packet(packet):
         if dst_domain:
             store_mapping(dst_domain, [dst_ip])
 
-        src_display = src_domain if src_domain else src_ip
-        dst_display = dst_domain if dst_domain else dst_ip
+        src_geo = get_geo_info(src_ip)
+        dst_geo = get_geo_info(dst_ip)
+
+        src_display = f"{src_ip} ({src_geo})" if src_geo else src_ip
+        dst_display = f"{dst_ip} ({dst_geo})" if dst_geo else dst_ip
 
         flow_tracker.update(
             src_ip, dst_ip, src_port, dst_port, protocol, pkt_len
         )
 
-        print(
-            f"[{timestamp}] {protocol} "
-            f"{src_display}:{src_port} -> {dst_display}:{dst_port} "
-            f"| PPS: {pps} | LEN: {pkt_len}"
-        )
+        # print(
+        #     f"[{timestamp}] {protocol} "
+        #     f"{src_display}:{src_port} -> {dst_display}:{dst_port} "
+        #     f"| PPS: {pps} | LEN: {pkt_len}"
+        # )
+        print(f"[{timestamp}] {protocol} {src_display}:{src_port} -> {dst_display}:{dst_port} | PPS: {pps} | LEN: {pkt_len}")
 
     except Exception as e:
         print("Packet error:", e)
