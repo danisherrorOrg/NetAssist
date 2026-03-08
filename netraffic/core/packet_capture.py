@@ -19,75 +19,14 @@ from netraffic.flow.flow_tracker import FlowTracker
 import csv
 import json
 from scapy.all import wrpcap
+from scapy.all import rdpcap
+
 
 PCAP_FILE = "captured_packets.pcap"  # PCAP file
 captured_packets = []  # buffer to store packets
-def save_remaining_packets():
-    if captured_packets:
-        wrpcap(PCAP_FILE, captured_packets)
-        print(f"[PCAP] Saved remaining {len(captured_packets)} packets to {PCAP_FILE}")
-
-# Register the function to run on program exit
-atexit.register(save_remaining_packets)
-
 CSV_FILE = "packets.csv"
-
-def init_csv_log():
-    """Create CSV file and write header row"""
-    if not os.path.exists(CSV_FILE):
-        with open(CSV_FILE, mode="w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                "timestamp", "protocol", "src_ip", "dst_ip",
-                "src_port", "dst_port", "src_domain", "dst_domain",
-                "packet_length", "pps", "tls_sni", "http_host"
-            ])
-def log_packet_csv(packet_info):
-    """Append a packet row to CSV file"""
-    with open(CSV_FILE, mode="a", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            packet_info["timestamp"],
-            packet_info["protocol"],
-            packet_info["src_ip"],
-            packet_info["dst_ip"],
-            packet_info["src_port"],
-            packet_info["dst_port"],
-            packet_info.get("src_domain", ""),
-            packet_info.get("dst_domain", ""),
-            packet_info["packet_length"],
-            packet_info["pps"],
-            packet_info.get("tls_sni", ""),
-            packet_info.get("http_host", "")
-        ])
-
-
 JSON_LOG_FILE = "packets.json"
 
-# Initialize JSON log file at start of capture
-def init_json_log():
-    with open("packets.json", "w") as f:
-        f.write("[\n")  # start JSON array
-
-# Append a packet to the JSON log
-def log_packet_json(packet_info):
-    """Append packet info to JSON file."""
-    # Create file if it doesn't exist
-    if not os.path.exists("packets.json"):
-        init_json_log()
-    
-    with open("packets.json", "a") as f:
-        json.dump(packet_info, f, indent=2)
-        f.write(",\n")  # comma separates objects
-
-# Close JSON array properly when capture ends
-def finalize_json_log():
-    """Close JSON array and remove trailing comma for valid JSON."""
-    with open("packets.json", "rb+") as f:
-        f.seek(-2, os.SEEK_END)  # move to last comma
-        f.truncate()             # remove trailing comma and newline
-    with open("packets.json", "a") as f:
-        f.write("\n]")           # close JSON array
 
 # ----------------------
 # Logging Setup
@@ -138,6 +77,88 @@ BLACKLIST_DOMAINS = set()  # Blacklisted domains
 # ----------------------
 # Helper Functions
 # ----------------------
+def analyze_pcap(file_path):
+    """
+    Analyze previously captured PCAP file.
+    Each packet is processed via the same process_packet function.
+    """
+    logger.info(f"\n[PCAP Analysis] Reading {file_path} ...\n")
+    try:
+        packets = rdpcap(file_path)
+        logger.info(f"[PCAP Analysis] {len(packets)} packets found.\n")
+        for pkt in packets:
+            process_packet(pkt)
+
+        logger.info("\n[PCAP Analysis] Done.")
+    except FileNotFoundError:
+        logger.critical(f"[Error] File not found: {file_path}")
+    except Exception as e:
+        logger.critical(f"[Error] Failed to analyze PCAP: {e}")
+
+def save_remaining_packets():
+    if captured_packets:
+        wrpcap(PCAP_FILE, captured_packets)
+        logger.info(f"[PCAP] Saved remaining {len(captured_packets)} packets to {PCAP_FILE}")
+
+# Register the function to run on program exit
+atexit.register(save_remaining_packets)
+
+
+def init_csv_log():
+    """Create CSV file and write header row"""
+    if not os.path.exists(CSV_FILE):
+        with open(CSV_FILE, mode="w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "timestamp", "protocol", "src_ip", "dst_ip",
+                "src_port", "dst_port", "src_domain", "dst_domain",
+                "packet_length", "pps", "tls_sni", "http_host"
+            ])
+def log_packet_csv(packet_info):
+    """Append a packet row to CSV file"""
+    with open(CSV_FILE, mode="a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            packet_info["timestamp"],
+            packet_info["protocol"],
+            packet_info["src_ip"],
+            packet_info["dst_ip"],
+            packet_info["src_port"],
+            packet_info["dst_port"],
+            packet_info.get("src_domain", ""),
+            packet_info.get("dst_domain", ""),
+            packet_info["packet_length"],
+            packet_info["pps"],
+            packet_info.get("tls_sni", ""),
+            packet_info.get("http_host", "")
+        ])
+
+# Initialize JSON log file at start of capture
+def init_json_log():
+    with open("packets.json", "w") as f:
+        f.write("[\n")  # start JSON array
+
+# Append a packet to the JSON log
+def log_packet_json(packet_info):
+    """Append packet info to JSON file."""
+    # Create file if it doesn't exist
+    if not os.path.exists("packets.json"):
+        init_json_log()
+    
+    with open("packets.json", "a") as f:
+        json.dump(packet_info, f, indent=2)
+        f.write(",\n")  # comma separates objects
+
+# Close JSON array properly when capture ends
+def finalize_json_log():
+    """Close JSON array and remove trailing comma for valid JSON."""
+    with open("packets.json", "rb+") as f:
+        f.seek(-2, os.SEEK_END)  # move to last comma
+        f.truncate()             # remove trailing comma and newline
+    with open("packets.json", "a") as f:
+        f.write("\n]")           # close JSON array
+
+
 def print_top_domains(top_n=10):
     logger.info("\n--- Top Requested Domains ---")
     for domain, count in domain_counter.most_common(top_n):
@@ -309,10 +330,27 @@ def process_packet(packet):
             dst_port = packet[UDP].dport
 
         # Resolve domain names
-        src_domain = resolve_ip(src_ip) or reverse_lookup(src_ip)
-        dst_domain = resolve_ip(dst_ip) or reverse_lookup(dst_ip)
-        if src_domain: store_mapping(src_domain, [src_ip])
-        if dst_domain: store_mapping(dst_domain, [dst_ip])
+        src_domain = resolve_ip(src_ip)
+        dst_domain = resolve_ip(dst_ip)
+
+        # Only attempt reverse lookup if needed
+        try:
+            if not src_domain:
+                src_domain = reverse_lookup(src_ip)
+        except Exception:
+            src_domain = None
+
+        try:
+            if not dst_domain:
+                dst_domain = reverse_lookup(dst_ip)
+        except Exception:
+            dst_domain = None
+
+        # Store mapping if we got a domain
+        if src_domain:
+            store_mapping(src_domain, [src_ip])
+        if dst_domain:
+            store_mapping(dst_domain, [dst_ip])
 
         # GeoIP
         src_geo = get_geo_info(src_ip)
