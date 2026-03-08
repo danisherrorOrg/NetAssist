@@ -9,7 +9,10 @@ venv/
 env/
 
 # Logs
-logs/
+logs/gi
+packets.json
+packets.csv
+packets.log
 
 # OS files
 .DS_Store

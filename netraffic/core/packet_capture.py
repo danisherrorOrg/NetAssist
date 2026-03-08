@@ -15,8 +15,39 @@ from netraffic.stats.trafficStats import TrafficStats
 from netraffic.tls.tls_sni_parser import parse_tls_sni
 from netraffic.http.http_parser import parse_http_host
 from netraffic.flow.flow_tracker import FlowTracker
-
+import csv
 import json
+CSV_FILE = "packets.csv"
+
+def init_csv_log():
+    """Create CSV file and write header row"""
+    if not os.path.exists(CSV_FILE):
+        with open(CSV_FILE, mode="w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "timestamp", "protocol", "src_ip", "dst_ip",
+                "src_port", "dst_port", "src_domain", "dst_domain",
+                "packet_length", "pps", "tls_sni", "http_host"
+            ])
+def log_packet_csv(packet_info):
+    """Append a packet row to CSV file"""
+    with open(CSV_FILE, mode="a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            packet_info["timestamp"],
+            packet_info["protocol"],
+            packet_info["src_ip"],
+            packet_info["dst_ip"],
+            packet_info["src_port"],
+            packet_info["dst_port"],
+            packet_info.get("src_domain", ""),
+            packet_info.get("dst_domain", ""),
+            packet_info["packet_length"],
+            packet_info["pps"],
+            packet_info.get("tls_sni", ""),
+            packet_info.get("http_host", "")
+        ])
+
 
 JSON_LOG_FILE = "packets.json"
 
@@ -308,6 +339,7 @@ def process_packet(packet):
         }
 
         log_packet_json(packet_info)
+        log_packet_csv(packet_info)
 
         # Print main packet info
         logger.info(f"[{timestamp}] {protocol} {src_display}:{src_port} -> {dst_display}:{dst_port} | PPS: {pps} | LEN: {pkt_len}")
@@ -321,6 +353,7 @@ def process_packet(packet):
 # ----------------------
 def start_capture(interface=None):
     logger.info("\nStarting Packet Capture...\n")
+    init_csv_log()  # make sure CSV header exists
     sniff(
         iface=interface,
         prn=process_packet,
