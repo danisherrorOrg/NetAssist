@@ -3,6 +3,7 @@ from datetime import datetime
 import traceback
 import sys
 from netraffic.dns.dns_parser import parse_dns
+from netraffic.stats.top_talkers import TopTalkers
 from netraffic.stats.packet_counter import PacketCounter
 from netraffic.parser.protocol_detector import get_protocol_name
 from netraffic.dns.reverse_dns import reverse_lookup
@@ -15,6 +16,7 @@ import geoip2.database
 
 geoip_reader = geoip2.database.Reader("./GeoLite2-City.mmdb")
 traffic_stats = TrafficStats()
+top_talkers = TopTalkers(top_n=10)
 seen_http = set()
 seen_tls = set()
 flow_tracker = FlowTracker()
@@ -234,6 +236,13 @@ def process_packet(packet):
         # Print every 100 packets
         if counter.total_packets % 100 == 0:
             traffic_stats.print_protocol_distribution()
+
+        # Inside process_packet, after you get src_ip, dst_ip, pkt_len
+        top_talkers.record_packet(src_ip, dst_ip, pkt_len)
+
+        # Print every 100 packets (or any interval)
+        if counter.total_packets % 100 == 0:
+            top_talkers.print_top_talkers()
 
         # print(
         #     f"[{timestamp}] {protocol} "
